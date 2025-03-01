@@ -44,9 +44,9 @@ def get_docs_with_keyword(keyword):
     try:
         creds = get_credentials()
         drive_service = build('drive', 'v3', credentials=creds)
-        
-        query = f"mimeType='application/vnd.google-apps.document' and fullText contains '{keyword}'"
-        
+
+        query = f"(name contains '{keyword}' or fullText contains '{keyword}') and trashed=false"
+
         response = drive_service.files().list(
             q=query,
             spaces='drive',
