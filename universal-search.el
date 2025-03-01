@@ -33,9 +33,21 @@
   :type 'string
   :group 'universal-search)
 
+(defun universal-search-get-python-bin ()
+  "Get the appropriate Python binary for the current environment."
+  (let ((candidates '("python3"            ;; システムのPython3
+                      "~/globalenv/bin/python3" ;; ユーザーのグローバル環境
+                      "~/.pyenv/shims/python3"  ;; pyenvの場合
+                      "~/anaconda3/bin/python3" ;; Anacondaの場合
+                      "python")))          ;; フォールバックとしてのpython
+    (cl-loop for candidate in candidates
+             when (executable-find (expand-file-name candidate))
+             return (expand-file-name candidate)
+             finally return (expand-file-name "~/globalenv/bin/python3"))))
+
 (defcustom universal-search-python-bin
-  "~/globalenv/bin/python3"
-  "Path to the directory containing Python scripts."
+  (universal-search-get-python-bin)
+  "Path to Python interpreter to use for executing scripts."
   :type 'string
   :group 'universal-search)
 
@@ -99,7 +111,6 @@
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
-
 
 
 ;;; Google Drive Search
@@ -183,50 +194,6 @@
                         :linum (string-to-number linum))
                   results))))
       results)))
-
-;;; Lookup Dictionary Search
-;;; (defun universal-search-lookup (keyword)
-;;;   "Search dictionaries for KEYWORD using lookup.el."
-;;;   (when (and universal-search-enable-lookup
-;;;              (featurep 'lookup))
-;;;     (let ((results '()))
-;;;       (condition-case nil
-;;;           (let ((entries (lookup-entries (lookup-parse-pattern keyword))))
-;;;             (dolist (entry entries)
-;;;               (let* ((heading (lookup-entry-heading entry))
-;;;                      (dict (lookup-entry-dictionary entry))
-;;;                      (dict-title (if dict (lookup-dictionary-title dict) "Unknown")))
-;;;                 (push (list :type 'lookup
-;;;                             :display (format "%s [%s]" heading dict-title)
-;;;                             :entry entry)
-;;;                       results))))
-;;;         (error nil))
-;;;       results)))
-
-;;;  (defun universal-search-lookup (keyword)
-;;;    "Search dictionaries for KEYWORD using lookup.el."
-;;;    (when (and universal-search-enable-lookup
-;;;               (featurep 'lookup))
-;;;      (let ((results '()))
-;;;        (condition-case nil
-;;;            (let* ((pattern (lookup-parse-pattern keyword))
-;;;                   (query (lookup-make-query 'default keyword))
-;;;                   (entries nil))
-;;;              ;; 実際のセッションを作らず検索のみ実行
-;;;              (dolist (dictionary (lookup-module-dictionaries (lookup-default-module)))
-;;;                (when (lookup-dictionary-selected-p dictionary)
-;;;                  (setq entries (append entries (lookup-vse-search-query dictionary query)))))
-;;;              ;; 検索結果をフォーマット
-;;;              (dolist (entry entries)
-;;;                (let* ((heading (lookup-entry-heading entry))
-;;;                       (dict (lookup-entry-dictionary entry))
-;;;                       (dict-title (if dict (lookup-dictionary-title dict) "Unknown")))
-;;;                  (push (list :type 'lookup
-;;;                              :display (format "%s [%s]" heading dict-title)
-;;;                              :entry entry)
-;;;                        results))))
-;;;          (error nil))
-;;;        results)))
 
 (defun universal-search-lookup (keyword)
   "Search dictionaries for KEYWORD using lookup.el."
@@ -569,7 +536,6 @@
           :buffer "*helm universal search*"
           :height universal-search-helm-height)))
 
-
 (defun universal-search ()
   "Search across local files, Google Drive, GitHub, dictionaries, and Spotlight."
   (interactive)
@@ -592,7 +558,7 @@
     (when (and universal-search-enable-local local-results)
       (push (helm-build-sync-source "Local Files"
               :candidates (mapcar (lambda (candidate)
-                                    (let ((icon ""))
+                                    (let ((icon ""))
                                       (cons (concat icon " " (plist-get candidate :display)) candidate)))
                                   local-results)
               :action '(("Open" . universal-search-action-handler)
@@ -607,7 +573,7 @@
     (when (and universal-search-enable-gdrive gdrive-results)
       (push (helm-build-sync-source "Google Drive"
               :candidates (mapcar (lambda (candidate)
-                                    (let ((icon ""))
+                                    (let ((icon ""))
                                       (cons (concat icon " " (plist-get candidate :display)) candidate)))
                                   gdrive-results)
               :action '(("Open in browser" . universal-search-action-handler)
@@ -622,9 +588,9 @@
               :candidates (mapcar (lambda (candidate)
                                     (let* ((type (plist-get candidate :type))
                                            (icon (cond
-                                                  ((eq type 'github-code) "")
-                                                  ((eq type 'github-issue) " ")
-                                                  ((eq type 'github-pr) " "))))
+                                                  ((eq type 'github-code) "")
+                                                  ((eq type 'github-issue) " ")
+                                                  ((eq type 'github-pr) " "))))
                                       (cons (concat icon " " (plist-get candidate :display)) candidate)))
                                   github-results)
               :action '(("Open in browser" . universal-search-action-handler)
@@ -637,7 +603,7 @@
     (when (and universal-search-enable-lookup lookup-results)
       (push (helm-build-sync-source "Dictionary"
               :candidates (mapcar (lambda (candidate)
-                                    (let ((icon ""))
+                                    (let ((icon ""))
                                       (cons (concat icon " " (plist-get candidate :display)) candidate)))
                                   lookup-results)
               :action '(("Look up" . universal-search-action-handler)
@@ -650,7 +616,7 @@
     (when (and universal-search-enable-spotlight spotlight-results)
       (push (helm-build-sync-source "Spotlight"
               :candidates (mapcar (lambda (candidate)
-                                    (let ((icon ""))
+                                    (let ((icon ""))
                                       (cons (concat icon " " (plist-get candidate :display)) candidate)))
                                   spotlight-results)
               :action '(("Open" . universal-search-action-handler)
