@@ -45,27 +45,27 @@
   :type '(repeat string)
   :group 'universal-search)
 
-(defcustom universal-search-enable-gdrive nil
+(defcustom universal-search-enable-gdrive t
   "Whether to enable Google search."
   :type 'boolean
   :group 'universal-search)
 
-(defcustom universal-search-enable-github nil
+(defcustom universal-search-enable-github t
   "Whether to enable GitHub search."
   :type 'boolean
   :group 'universal-search)
 
-(defcustom universal-search-enable-local nil
+(defcustom universal-search-enable-local t
   "Whether to enable GitHub search."
   :type 'boolean
   :group 'universal-search)
 
-(defcustom universal-search-enable-lookup nil
+(defcustom universal-search-enable-lookup t
   "Whether to enable dictionary lookup via lookup.el."
   :type 'boolean
   :group 'universal-search)
 
-(defcustom universal-search-enable-spotlight (eq system-type 'darwin)
+(defcustom universal-search-enable-spotlight nil
   "Whether to enable macOS Spotlight search via mdfind."
   :type 'boolean
   :group 'universal-search)
@@ -101,13 +101,6 @@
   :group 'universal-search)
 
 
-(setq universal-search-python-bin "~/globalenv/bin/python3")
-(setq universal-search-enable-local t)
-(setq universal-search-enable-lookup t)
-(setq universal-search-enable-gdrive t)
-(setq universal-search-enable-github t)
-(setq universal-search-enable-spotlight t)
-(setq universal-search-helm-height 60)
 
 ;;; Google Drive Search
 (defun universal-search-gdrive (keyword)
