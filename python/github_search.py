@@ -4,6 +4,7 @@ import sys
 import os
 import requests
 import base64
+import concurrent.futures
 from configparser import ConfigParser
 
 # スクリプトのあるディレクトリ
@@ -38,12 +39,101 @@ def get_github_username(token):
     if response.status_code == 200:
         return response.json()['login']
     else:
-        sys.stderr.write(f"Failed to get GitHub username: {response.status_code}\n")
-        sys.stderr.write(response.text + "\n")
         return None
 
+def search_github_code(keyword, username, headers):
+    """GitHubでコードを検索"""
+    results = []
+    code_url = f'https://api.github.com/search/code?q={keyword}+user:{username}'
+    
+    try:
+        code_response = requests.get(code_url, headers=headers)
+        if code_response.status_code == 200:
+            code_data = code_response.json()
+            
+            # 並列でコードコンテンツを取得
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_item = {
+                    executor.submit(get_code_content, item, headers): item 
+                    for item in code_data.get('items', [])
+                }
+                
+                for future in concurrent.futures.as_completed(future_to_item):
+                    item = future_to_item[future]
+                    try:
+                        snippet = future.result()
+                        repo_name = item['repository']['name']
+                        path = item['path']
+                        html_url = item['html_url']
+                        
+                        results.append({
+                            'type': 'code',
+                            'repo': repo_name,
+                            'path': path,
+                            'html_url': html_url,
+                            'snippet': snippet,
+                            'title': f"{repo_name}: {path}"
+                        })
+                    except Exception as e:
+                        pass
+    except Exception as e:
+        pass
+        
+    return results
+
+def get_code_content(item, headers):
+    """コードコンテンツを取得"""
+    content_url = item['url']
+    snippet = ""
+    
+    try:
+        content_response = requests.get(content_url, headers=headers)
+        if content_response.status_code == 200:
+            content_data = content_response.json()
+            if content_data.get('encoding') == 'base64' and content_data.get('content'):
+                decoded_content = base64.b64decode(content_data['content']).decode('utf-8')
+                lines = decoded_content.split('\n')
+                snippet = '\n'.join(lines[:5]) + ('...' if len(lines) > 5 else '')
+    except Exception:
+        pass
+        
+    return snippet
+
+def search_github_issues(keyword, username, headers, is_pr=False):
+    """GitHubでイシューまたはPRを検索"""
+    results = []
+    type_query = "type:pr" if is_pr else "type:issue"
+    type_name = "pr" if is_pr else "issue"
+    
+    url = f'https://api.github.com/search/issues?q={keyword}+{type_query}+author:{username}'
+    
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            for item in data.get('items', []):
+                # PRの場合はpull_requestが含まれる、イシューの場合は含まれない
+                if ('pull_request' in item) == is_pr:
+                    repo_url = item['repository_url']
+                    repo_name = repo_url.split('/')[-1]
+                    number = item['number']
+                    title = item['title']
+                    html_url = item['html_url']
+                    
+                    results.append({
+                        'type': type_name,
+                        'repo': repo_name,
+                        'number': number,
+                        'title': title,
+                        'html_url': html_url
+                    })
+    except Exception as e:
+        pass
+        
+    return results
+
 def search_github(keyword):
-    """GitHubでコード、イシュー、PRを検索"""
+    """GitHubでコード、イシュー、PRを並列検索"""
     token = get_github_token()
     username = get_github_username(token)
     if not username:
@@ -54,93 +144,19 @@ def search_github(keyword):
         'Accept': 'application/vnd.github.v3+json'
     }
     
-    results = []
+    # 並列で3種類の検索を実行
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        code_future = executor.submit(search_github_code, keyword, username, headers)
+        issue_future = executor.submit(search_github_issues, keyword, username, headers, False)
+        pr_future = executor.submit(search_github_issues, keyword, username, headers, True)
+        
+        # 全ての結果を待機
+        code_results = code_future.result()
+        issue_results = issue_future.result()
+        pr_results = pr_future.result()
     
-    # コード検索
-    code_url = f'https://api.github.com/search/code?q={keyword}+user:{username}'
-    code_response = requests.get(code_url, headers=headers)
-    if code_response.status_code == 200:
-        code_data = code_response.json()
-        for item in code_data.get('items', []):
-            repo_name = item['repository']['name']
-            path = item['path']
-            html_url = item['html_url']
-            # コードのコンテンツを取得（オプション）
-            content_url = item['url']
-            content_response = requests.get(content_url, headers=headers)
-            snippet = ""
-            if content_response.status_code == 200:
-                content_data = content_response.json()
-                if content_data.get('encoding') == 'base64' and content_data.get('content'):
-                    try:
-                        decoded_content = base64.b64decode(content_data['content']).decode('utf-8')
-                        lines = decoded_content.split('\n')
-                        # マッチを含む行の前後数行を抽出（簡略化のため全て取得）
-                        snippet = '\n'.join(lines[:5]) + ('...' if len(lines) > 5 else '')
-                    except Exception as e:
-                        sys.stderr.write(f"Error decoding content: {e}\n")
-            
-            results.append({
-                'type': 'code',
-                'repo': repo_name,
-                'path': path,
-                'html_url': html_url,
-                'snippet': snippet,
-                'title': f"{repo_name}: {path}"
-            })
-    else:
-        sys.stderr.write(f"Code search failed: {code_response.status_code}\n")
-        sys.stderr.write(code_response.text + "\n")
-    
-    # イシュー検索
-    issue_url = f'https://api.github.com/search/issues?q={keyword}+type:issue+author:{username}'
-    issue_response = requests.get(issue_url, headers=headers)
-    if issue_response.status_code == 200:
-        issue_data = issue_response.json()
-        for item in issue_data.get('items', []):
-            if 'pull_request' not in item:  # PRでないものだけ
-                repo_url = item['repository_url']
-                repo_name = repo_url.split('/')[-1]
-                number = item['number']
-                title = item['title']
-                html_url = item['html_url']
-                
-                results.append({
-                    'type': 'issue',
-                    'repo': repo_name,
-                    'number': number,
-                    'title': title,
-                    'html_url': html_url
-                })
-    else:
-        sys.stderr.write(f"Issue search failed: {issue_response.status_code}\n")
-        sys.stderr.write(issue_response.text + "\n")
-    
-    # PR検索
-    pr_url = f'https://api.github.com/search/issues?q={keyword}+type:pr+author:{username}'
-    pr_response = requests.get(pr_url, headers=headers)
-    if pr_response.status_code == 200:
-        pr_data = pr_response.json()
-        for item in pr_data.get('items', []):
-            if 'pull_request' in item:  # PRのみ
-                repo_url = item['repository_url']
-                repo_name = repo_url.split('/')[-1]
-                number = item['number']
-                title = item['title']
-                html_url = item['html_url']
-                
-                results.append({
-                    'type': 'pr',
-                    'repo': repo_name,
-                    'number': number,
-                    'title': title,
-                    'html_url': html_url
-                })
-    else:
-        sys.stderr.write(f"PR search failed: {pr_response.status_code}\n")
-        sys.stderr.write(pr_response.text + "\n")
-    
-    return results
+    # 結果を統合
+    return code_results + issue_results + pr_results
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
