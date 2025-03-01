@@ -75,17 +75,17 @@
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-local 20
+(defcustom universal-search-max-results-local 50
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-gdrive 10
+(defcustom universal-search-max-results-gdrive 50
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-github 20
+(defcustom universal-search-max-results-github 50
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
