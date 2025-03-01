@@ -569,5 +569,111 @@
           :buffer "*helm universal search*"
           :height universal-search-helm-height)))
 
+
+(defun universal-search ()
+  "Search across local files, Google Drive, GitHub, dictionaries, and Spotlight."
+  (interactive)
+  (let* ((results (universal-search-process-results))
+         (keyword (car results))
+         (candidates (cdr results))
+         ;; ソース別に結果を分類
+         (local-results (seq-filter (lambda (item) (eq (plist-get item :type) 'local)) candidates))
+         (gdrive-results (seq-filter (lambda (item) (eq (plist-get item :type) 'gdrive)) candidates))
+         (github-results (seq-filter (lambda (item) (or (eq (plist-get item :type) 'github-code)
+                                                        (eq (plist-get item :type) 'github-issue)
+                                                        (eq (plist-get item :type) 'github-pr)))
+                                     candidates))
+         (lookup-results (seq-filter (lambda (item) (eq (plist-get item :type) 'lookup)) candidates))
+         (spotlight-results (seq-filter (lambda (item) (eq (plist-get item :type) 'spotlight)) candidates))
+         ;; 各ソースのHelm用ソース作成
+         (sources '()))
+
+    ;; ローカルファイル検索のソースを追加
+    (when (and universal-search-enable-local local-results)
+      (push (helm-build-sync-source "Local Files"
+              :candidates (mapcar (lambda (candidate)
+                                    (let ((icon ""))
+                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                  local-results)
+              :action '(("Open" . universal-search-action-handler)
+                        ("Copy path" . universal-search-copy-link)
+                        ("Open with external app" . universal-search-open-with-external-app)
+                        ("View metadata" . universal-search-get-file-metadata))
+              :persistent-action 'universal-search-copy-link
+              :persistent-help "Copy path to clipboard")
+            sources))
+
+    ;; Google Drive検索のソースを追加
+    (when (and universal-search-enable-gdrive gdrive-results)
+      (push (helm-build-sync-source "Google Drive"
+              :candidates (mapcar (lambda (candidate)
+                                    (let ((icon ""))
+                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                  gdrive-results)
+              :action '(("Open in browser" . universal-search-action-handler)
+                        ("Copy link" . universal-search-copy-link))
+              :persistent-action 'universal-search-copy-link
+              :persistent-help "Copy link to clipboard")
+            sources))
+
+    ;; GitHub検索のソースを追加
+    (when (and universal-search-enable-github github-results)
+      (push (helm-build-sync-source "GitHub"
+              :candidates (mapcar (lambda (candidate)
+                                    (let* ((type (plist-get candidate :type))
+                                           (icon (cond
+                                                  ((eq type 'github-code) "")
+                                                  ((eq type 'github-issue) " ")
+                                                  ((eq type 'github-pr) " "))))
+                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                  github-results)
+              :action '(("Open in browser" . universal-search-action-handler)
+                        ("Copy link" . universal-search-copy-link))
+              :persistent-action 'universal-search-copy-link
+              :persistent-help "Copy link to clipboard")
+            sources))
+
+    ;; 辞書検索のソースを追加
+    (when (and universal-search-enable-lookup lookup-results)
+      (push (helm-build-sync-source "Dictionary"
+              :candidates (mapcar (lambda (candidate)
+                                    (let ((icon ""))
+                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                  lookup-results)
+              :action '(("Look up" . universal-search-action-handler)
+                        ("Copy text" . universal-search-copy-link))
+              :persistent-action 'universal-search-copy-link
+              :persistent-help "Copy text to clipboard")
+            sources))
+
+    ;; Spotlight検索のソースを追加
+    (when (and universal-search-enable-spotlight spotlight-results)
+      (push (helm-build-sync-source "Spotlight"
+              :candidates (mapcar (lambda (candidate)
+                                    (let ((icon ""))
+                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                  spotlight-results)
+              :action '(("Open" . universal-search-action-handler)
+                        ("Copy path" . universal-search-copy-link)
+                        ("Open with external app" . universal-search-open-with-external-app)
+                        ("View metadata" . universal-search-get-file-metadata))
+              :persistent-action 'universal-search-copy-link
+              :persistent-help "Copy path to clipboard")
+            sources))
+
+    ;; ソースが存在しない場合のメッセージ
+    (when (null sources)
+      (push (helm-build-sync-source "No Results"
+              :candidates '(("No matching results found" . nil))
+              :action (lambda (_) (message "No action available")))
+            sources))
+
+    ;; Helmを起動
+    (helm :sources (nreverse sources)
+          :buffer "*helm universal search*"
+          :prompt (format "Search (%s): " keyword)
+          :height universal-search-helm-height)))
+
+
 (provide 'universal-search)
 ;;; universal-search.el ends here
