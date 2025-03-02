@@ -8,6 +8,9 @@ A unified search interface that allows you to search across multiple sources fro
 - **Dictionaries** (via lookup.el)
 - **macOS Spotlight** (via mdfind)
 
+## Screenshot
+![Screenshot](images/ss.png)
+
 ## Features
 
 - Single interface for searching across multiple sources
