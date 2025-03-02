@@ -546,8 +546,7 @@
                         ("Copy path" . universal-search-copy-link)
                         ("Open with external app" . universal-search-open-with-external-app)
                         ("View metadata" . universal-search-get-file-metadata))
-              :persistent-action 'universal-search-copy-link
-              :persistent-help "Copy path to clipboard")
+              )
             sources))
 
     ;; Google Drive
@@ -563,8 +562,7 @@
                                   gdrive-results)
               :action '(("Open in browser" . universal-search-action-handler)
                         ("Copy link" . universal-search-copy-link))
-              :persistent-action 'universal-search-copy-link
-              :persistent-help "Copy link to clipboard")
+              )
             sources))
 
     ;; GitHub
@@ -584,8 +582,7 @@
                                   github-results)
               :action '(("Open in browser" . universal-search-action-handler)
                         ("Copy link" . universal-search-copy-link))
-              :persistent-action 'universal-search-copy-link
-              :persistent-help "Copy link to clipboard")
+              )
             sources))
 
     ;; lookup
@@ -601,8 +598,7 @@
                                   lookup-results)
               :action '(("Look up" . universal-search-action-handler)
                         ("Copy text" . universal-search-copy-link))
-              :persistent-action 'universal-search-copy-link
-              :persistent-help "Copy text to clipboard")
+              )
             sources))
 
     ;; Spotlight
@@ -620,8 +616,7 @@
                         ("Copy path" . universal-search-copy-link)
                         ("Open with external app" . universal-search-open-with-external-app)
                         ("View metadata" . universal-search-get-file-metadata))
-              :persistent-action 'universal-search-copy-link
-              :persistent-help "Copy path to clipboard")
+              )
             sources))
 
     ;; message when no source
