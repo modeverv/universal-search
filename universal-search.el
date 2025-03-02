@@ -35,11 +35,11 @@
 
 (defun universal-search-get-python-bin ()
   "Get the appropriate Python binary for the current environment."
-  (let ((candidates '("python3"            ;; システムのPython3
-                      "~/globalenv/bin/python3" ;; ユーザーのグローバル環境
-                      "~/.pyenv/shims/python3"  ;; pyenvの場合
-                      "~/anaconda3/bin/python3" ;; Anacondaの場合
-                      "python")))          ;; フォールバックとしてのpython
+  (let ((candidates '("python3"
+                      "~/globalenv/bin/python3"
+                      "~/.pyenv/shims/python3"
+                      "~/anaconda3/bin/python3"
+                      "python")))
     (cl-loop for candidate in candidates
              when (executable-find (expand-file-name candidate))
              return (expand-file-name candidate)
@@ -53,6 +53,12 @@
 
 (defcustom universal-search-exclude-patterns
   '("private" "archive" "999_old" "flycheck_" "flymake_" ".git" "node_modules" "996_misc")
+  "Patterns to exclude from local search."
+  :type '(repeat string)
+  :group 'universal-search)
+
+(defcustom universal-search-spotlight-search-path
+  "~/"
   "Patterns to exclude from local search."
   :type '(repeat string)
   :group 'universal-search)
@@ -77,7 +83,7 @@
   :type 'boolean
   :group 'universal-search)
 
-(defcustom universal-search-enable-spotlight nil
+(defcustom universal-search-enable-spotlight (eq system-type 'darwin)
   "Whether to enable macOS Spotlight search via mdfind."
   :type 'boolean
   :group 'universal-search)
@@ -87,17 +93,17 @@
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-local 50
+(defcustom universal-search-max-results-local 30
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-gdrive 50
+(defcustom universal-search-max-results-gdrive 30
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
 
-(defcustom universal-search-max-results-github 50
+(defcustom universal-search-max-results-github 30
   "Maximum number of results to display per search source."
   :type 'integer
   :group 'universal-search)
@@ -112,6 +118,42 @@
   :type 'integer
   :group 'universal-search)
 
+;;; face
+(defface universal-search-filename-face
+  '((t :foreground "light blue" :weight bold))
+  "Face for filenames in universal search results.")
+
+(defface universal-search-linenum-face
+  '((t :foreground "light green" :weight normal))
+  "Face for line numbers in universal search results.")
+
+(defface universal-search-content-face
+  '((t :foreground "white" :weight normal))
+  "Face for content in universal search results.")
+
+(defface universal-search-local-face
+  '((t :foreground "light blue" :weight bold))
+  "Face for local file results in universal search.")
+
+(defface universal-search-gdrive-face
+  '((t :foreground "light green" :weight bold))
+  "Face for Google Drive results in universal search.")
+
+(defface universal-search-github-face
+  '((t :foreground "purple" :weight bold))
+  "Face for GitHub results in universal search.")
+
+(defface universal-search-lookup-face
+  '((t :foreground "orange" :weight bold))
+  "Face for Dictionary lookup results in universal search.")
+
+(defface universal-search-spotlight-face
+  '((t :foreground "yellow" :weight bold))
+  "Face for Spotlight results in universal search.")
+
+(defface universal-search-icon-face
+  '((t :foreground "hot pink" :weight bold))
+  "Face for icons in universal search results.")
 
 ;;; Google Drive Search
 (defun universal-search-gdrive (keyword)
@@ -169,6 +211,9 @@
       (message nil)
       nil)))
 
+
+
+
 ;;; Local Search
 (defun universal-search-local (keyword)
   "Search local files for KEYWORD using ripgrep."
@@ -189,7 +234,14 @@
                 (linum (match-string 2 line))
                 (content (match-string 3 line)))
             (push (list :type 'local
-                        :display (format "%s:%s: %s" file linum content)
+
+
+
+                        :display (format "%s:%s: %s"
+                                         (propertize file 'face 'universal-search-filename-face)
+                                         (propertize linum 'face 'universal-search-linenum-face)
+                                         content
+                                         )
                         :file file
                         :linum (string-to-number linum))
                   results))))
@@ -201,37 +253,28 @@
     (let ((results '()))
       (condition-case err
           (progn
-            ;; lookupが読み込まれていなければ読み込む
+            ;; load lookup
             (require 'lookup nil t)
-
-            ;; lookupが初期化されていなければ初期化する
-            (when (and (featurep 'lookup)
-                       ;;                       (fboundp 'lookup-initialized)
-                       ;;                       (not (lookup-initialized))
-                       )
-              ;;              (if (fboundp 'lookup-initialize)
-              ;;              (message "initialize!!!!!")
-              ;;                (lookup-initialize)
-              (lookup)
-              ;;                )
-              )
-
-            ;; 検索実行
+            ;; search
             (when (featurep 'lookup)
+              (lookup)
               (let* ((pattern (lookup-parse-pattern keyword))
                      (query (lookup-make-query 'default keyword))
                      (entries nil))
-                ;; 実際のセッションを作らず検索のみ実行
+                ;; without session
                 (dolist (dictionary (lookup-module-dictionaries (lookup-default-module)))
                   (when (lookup-dictionary-selected-p dictionary)
                     (setq entries (append entries (lookup-vse-search-query dictionary query)))))
-                ;; 検索結果をフォーマット
+                ;; format result
                 (dolist (entry entries)
                   (let* ((heading (lookup-entry-heading entry))
                          (dict (lookup-entry-dictionary entry))
                          (dict-title (if dict (lookup-dictionary-title dict) "Unknown")))
                     (push (list :type 'lookup
-                                :display (format "%s [%s]" heading dict-title)
+                                :display (format "%s [%s]"
+                                                 (propertize heading 'face 'universal-search-lookup-face)
+                                                 dict-title
+                                                 )
                                 :entry entry)
                           results))))))
         (error
@@ -246,9 +289,9 @@
              (eq system-type 'darwin)
              (executable-find "mdfind"))
     ;; todo onlyin use custom
-    (let* ((cmd (format "mdfind -name '%s' -onlyin ~/ 2>/dev/null"
+    (let* ((cmd (format "mdfind -name '%s' -onlyin %s 2>/dev/null"
                         (shell-quote-argument keyword)
-                        ;;                        universal-search-spotlight-limit
+                        universal-search-spotlight-search-path
                         ))
            (result (shell-command-to-string cmd))
            (results '()))
@@ -256,47 +299,13 @@
         (let ((filename (file-name-nondirectory line))
               (directory (file-name-directory line)))
           (push (list :type 'spotlight
-                      :display (format "%s [%s]" filename
+                      :display (format "%s [%s]"
+                                       (propertize filename 'face 'universal-search-spotlight-face)
                                        (if directory
                                            (abbreviate-file-name directory)
                                          ""))
                       :path line
                       :full-path line)
-                results)))
-      results)))
-
-(defun universal-search-spotlight-advanced (keyword)
-  "Advanced macOS Spotlight search for KEYWORD with metadata."
-  (when (and universal-search-enable-spotlight
-             (eq system-type 'darwin)
-             (executable-find "mdfind"))
-    (let* ((cmd (format "mdfind '%s' -onlyin ~/ 2>/dev/null"
-                        (shell-quote-argument keyword)
-                        ;;        universal-search-spotlight-limit
-                        )
-                )
-           (result (shell-command-to-string cmd))
-           (results '()))
-      ;; Get metadata for each result
-      (dolist (path (split-string result "\n" t))
-        (let* ((filename (file-name-nondirectory path))
-               (directory (file-name-directory path))
-               (kind-cmd (format "mdls -name kMDItemKind '%s' 2>/dev/null || echo 'kMDItemKind = \"Unknown\"'"
-                                 (shell-quote-argument path)))
-               (kind-result (shell-command-to-string kind-cmd))
-               (kind (if (string-match "kMDItemKind = \"\\(.*\\)\"" kind-result)
-                         (match-string 1 kind-result)
-                       "Unknown")))
-          (push (list :type 'spotlight
-                      :display (format "%s [%s] - %s"
-                                       filename
-                                       kind
-                                       (if directory
-                                           (abbreviate-file-name directory)
-                                         ""))
-                      :path path
-                      :full-path path
-                      :kind kind)
                 results)))
       results)))
 
@@ -312,7 +321,9 @@
                   (id (gethash "id" item)))
               (when (and name link id)
                 (push (list :type 'gdrive
-                            :display (format "%s" name)
+                            :display (format "%s"
+                                             (propertize name 'face 'universal-search-gdrive-face)
+                                             )
                             :link link
                             :id id
                             :name name)
@@ -328,7 +339,10 @@
       (let* ((type (gethash "type" item))
              (title (gethash "title" item))
              (html-url (gethash "html_url" item))
-             (display (format "%s: %s" type title)))
+             (display (format "%s: %s"
+                              (propertize type 'face 'universal-search-github-face)
+                              title
+                              )))
         (push (list :type (intern (format "github-%s" type))
                     :display display
                     :html_url html-url
@@ -377,13 +391,6 @@
         (dolist (item (seq-take lookup-results universal-search-max-results-lookup))
           (push item all-results))))
 
-    ;; Spotlight search
-    ;;    (when universal-search-enable-spotlight
-    ;;      (message "Searching with Spotlight...")
-    ;;      (let ((spotlight-results (universal-search-spotlight keyword)))
-    ;;        (dolist (item spotlight-results)
-    ;;          (push item all-results))))
-
     ;; Spotlight search (macOS only)
     (when universal-search-enable-spotlight
       (message "Searching with Spotlight...")
@@ -395,7 +402,7 @@
 
 (defun universal-search-action-handler (candidate)
   "Handle actions for CANDIDATE based on its type."
-  ;;  (message candidate)
+  ;;;;   (message candidate) ; debug
   (let ((type (plist-get candidate :type)))
     (cond
 
@@ -417,13 +424,13 @@
 
      ;; Lookup dictionary entries
      ((eq type 'lookup)
-      ;; lookupセッションを開始して表示
+      ;; start lookup session
       (let* ((entry (plist-get candidate :entry))
              (module (lookup-default-module))
              (query (lookup-make-query 'default (lookup-entry-heading entry))))
         (if (fboundp 'lookup-display-entries)
             (lookup-display-entries module query (list entry))
-          ;; 代替策: 単に検索を実行
+          ;; simple lookup search
           (lookup-pattern (lookup-entry-heading entry)
                           )
           )
@@ -509,38 +516,6 @@
   (interactive)
   (let* ((results (universal-search-process-results))
          (keyword (car results))
-         (candidates (cdr results)))
-
-    (helm :sources (helm-build-sync-source (format "Universal Search: %s" keyword)
-                     :candidates candidates
-                     :candidate-transformer
-                     (lambda (candidates)
-                       (mapcar (lambda (candidate)
-                                 (let* ((type (plist-get candidate :type))
-                                        (icon (cond
-                                               ((eq type 'gdrive) "")    ; Google Drive icon
-                                               ((eq type 'local) "")     ; File icon
-                                               ((eq type 'github-code) "") ; Code icon
-                                               ((eq type 'github-issue) " ") ; Issue icon
-                                               ((eq type 'github-pr) " ")    ; PR icon
-                                               ((eq type 'lookup) "")    ; Dictionary icon
-                                               ((eq type 'spotlight) "")))) ; Spotlight icon
-                                   (cons (concat icon " " (plist-get candidate :display)) candidate)))
-                               candidates))
-                     :action '(("Open" . universal-search-action-handler)
-                               ("Copy link/path" . universal-search-copy-link)
-                               ("Open with external app" . universal-search-open-with-external-app)
-                               ("View metadata" . universal-search-get-file-metadata))
-                     :persistent-action 'universal-search-copy-link
-                     :persistent-help "Copy link/path to clipboard")
-          :buffer "*helm universal search*"
-          :height universal-search-helm-height)))
-
-(defun universal-search ()
-  "Search across local files, Google Drive, GitHub, dictionaries, and Spotlight."
-  (interactive)
-  (let* ((results (universal-search-process-results))
-         (keyword (car results))
          (candidates (cdr results))
          ;; ソース別に結果を分類
          (local-results (seq-filter (lambda (item) (eq (plist-get item :type) 'local)) candidates))
@@ -551,15 +526,21 @@
                                      candidates))
          (lookup-results (seq-filter (lambda (item) (eq (plist-get item :type) 'lookup)) candidates))
          (spotlight-results (seq-filter (lambda (item) (eq (plist-get item :type) 'spotlight)) candidates))
-         ;; 各ソースのHelm用ソース作成
          (sources '()))
 
-    ;; ローカルファイル検索のソースを追加
+    ;; local
     (when (and universal-search-enable-local local-results)
       (push (helm-build-sync-source "Local Files"
               :candidates (mapcar (lambda (candidate)
                                     (let ((icon ""))
-                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                      (cons (concat
+                                             (propertize icon 'face 'universal-search-icon-face)
+                                             " "
+                                             (plist-get candidate :display)
+                                             )
+                                            candidate)
+                                      )
+                                    )
                                   local-results)
               :action '(("Open" . universal-search-action-handler)
                         ("Copy path" . universal-search-copy-link)
@@ -569,12 +550,16 @@
               :persistent-help "Copy path to clipboard")
             sources))
 
-    ;; Google Drive検索のソースを追加
+    ;; Google Drive
     (when (and universal-search-enable-gdrive gdrive-results)
       (push (helm-build-sync-source "Google Drive"
               :candidates (mapcar (lambda (candidate)
                                     (let ((icon ""))
-                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                      (cons (concat
+                                             ;;icon
+                                             (propertize icon 'face 'universal-search-icon-face)
+                                             " "
+                                             (plist-get candidate :display)) candidate)))
                                   gdrive-results)
               :action '(("Open in browser" . universal-search-action-handler)
                         ("Copy link" . universal-search-copy-link))
@@ -582,7 +567,7 @@
               :persistent-help "Copy link to clipboard")
             sources))
 
-    ;; GitHub検索のソースを追加
+    ;; GitHub
     (when (and universal-search-enable-github github-results)
       (push (helm-build-sync-source "GitHub"
               :candidates (mapcar (lambda (candidate)
@@ -591,7 +576,11 @@
                                                   ((eq type 'github-code) "")
                                                   ((eq type 'github-issue) " ")
                                                   ((eq type 'github-pr) " "))))
-                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                      (cons (concat
+                                             ;;icon
+                                             (propertize icon 'face 'universal-search-icon-face)
+                                             " "
+                                             (plist-get candidate :display)) candidate)))
                                   github-results)
               :action '(("Open in browser" . universal-search-action-handler)
                         ("Copy link" . universal-search-copy-link))
@@ -599,12 +588,16 @@
               :persistent-help "Copy link to clipboard")
             sources))
 
-    ;; 辞書検索のソースを追加
+    ;; lookup
     (when (and universal-search-enable-lookup lookup-results)
       (push (helm-build-sync-source "Dictionary"
               :candidates (mapcar (lambda (candidate)
                                     (let ((icon ""))
-                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                      (cons (concat
+                                             ;;icon
+                                             (propertize icon 'face 'universal-search-icon-face)
+                                             " "
+                                             (plist-get candidate :display)) candidate)))
                                   lookup-results)
               :action '(("Look up" . universal-search-action-handler)
                         ("Copy text" . universal-search-copy-link))
@@ -612,12 +605,16 @@
               :persistent-help "Copy text to clipboard")
             sources))
 
-    ;; Spotlight検索のソースを追加
+    ;; Spotlight
     (when (and universal-search-enable-spotlight spotlight-results)
       (push (helm-build-sync-source "Spotlight"
               :candidates (mapcar (lambda (candidate)
                                     (let ((icon ""))
-                                      (cons (concat icon " " (plist-get candidate :display)) candidate)))
+                                      (cons (concat
+                                             ;;icon
+                                             (propertize icon 'face 'universal-search-icon-face)
+                                             " "
+                                             (plist-get candidate :display)) candidate)))
                                   spotlight-results)
               :action '(("Open" . universal-search-action-handler)
                         ("Copy path" . universal-search-copy-link)
@@ -627,19 +624,19 @@
               :persistent-help "Copy path to clipboard")
             sources))
 
-    ;; ソースが存在しない場合のメッセージ
+    ;; message when no source
     (when (null sources)
       (push (helm-build-sync-source "No Results"
               :candidates '(("No matching results found" . nil))
               :action (lambda (_) (message "No action available")))
             sources))
 
-    ;; Helmを起動
     (helm :sources (nreverse sources)
           :buffer "*helm universal search*"
-          :prompt (format "Search (%s): " keyword)
-          :height universal-search-helm-height)))
-
+          :prompt (format "Query (%s): " keyword)
+          :height universal-search-helm-height)
+    )
+  )
 
 (provide 'universal-search)
 ;;; universal-search.el ends here
