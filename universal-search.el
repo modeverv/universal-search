@@ -155,6 +155,8 @@
   '((t :foreground "hot pink" :weight bold))
   "Face for icons in universal search results.")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; private
 ;;; Google Drive Search
 (defun universal-search-gdrive (keyword)
   "Search Google Drive for KEYWORD."
@@ -177,6 +179,7 @@
       (message "Google Drive search script not found at %s" script-path)
       nil)))
 
+;; debug gdrive search
 (defun universal-search-debug-gdrive ()
   "Debug Google Drive search results."
   (interactive)
@@ -211,9 +214,6 @@
       (message nil)
       nil)))
 
-
-
-
 ;;; Local Search
 (defun universal-search-local (keyword)
   "Search local files for KEYWORD using ripgrep."
@@ -234,9 +234,6 @@
                 (linum (match-string 2 line))
                 (content (match-string 3 line)))
             (push (list :type 'local
-
-
-
                         :display (format "%s:%s: %s"
                                          (propertize file 'face 'universal-search-filename-face)
                                          (propertize linum 'face 'universal-search-linenum-face)
@@ -247,6 +244,7 @@
                   results))))
       results)))
 
+;; lookup search
 (defun universal-search-lookup (keyword)
   "Search dictionaries for KEYWORD using lookup.el."
   (when universal-search-enable-lookup
@@ -257,6 +255,7 @@
             (require 'lookup nil t)
             ;; search
             (when (featurep 'lookup)
+              (lookup-exit)
               (lookup)
               (let* ((pattern (lookup-parse-pattern keyword))
                      (query (lookup-make-query 'default keyword))
@@ -280,7 +279,6 @@
         (error
          (message "Lookup error: %S" err)))
       results)))
-
 
 ;;; macOS Spotlight Search
 (defun universal-search-spotlight (keyword)
@@ -400,6 +398,7 @@
 
     (cons keyword all-results)))
 
+;;; action handler
 (defun universal-search-action-handler (candidate)
   "Handle actions for CANDIDATE based on its type."
   ;;;;   (message candidate) ; debug
@@ -445,6 +444,7 @@
 
      )))
 
+;; copy link action
 (defun universal-search-copy-link (candidate)
   "Copy link or path from CANDIDATE to clipboard."
   (let* ((type (plist-get candidate :type))
@@ -462,6 +462,7 @@
     (kill-new text)
     (message "Copied to clipboard: %s" text)))
 
+;; open with external app action
 (defun universal-search-open-with-external-app (candidate)
   "Open CANDIDATE with external application."
   (let ((type (plist-get candidate :type)))
@@ -480,6 +481,7 @@
      (t
       (message "Cannot open this type with external application")))))
 
+;; get metadata action
 (defun universal-search-get-file-metadata (candidate)
   "Display metadata for file in CANDIDATE."
   (let ((type (plist-get candidate :type)))
@@ -514,7 +516,10 @@
 (defun universal-search ()
   "Search across local files, Google Drive, GitHub, dictionaries, and Spotlight."
   (interactive)
-  (let* ((results (universal-search-process-results))
+  (let* (
+         (original-buffer (current-buffer))
+         (original-window (selected-window))
+         (results (universal-search-process-results))
          (keyword (car results))
          (candidates (cdr results))
          ;; ソース別に結果を分類
@@ -626,10 +631,18 @@
               :action (lambda (_) (message "No action available")))
             sources))
 
-    (helm :sources (nreverse sources)
-          :buffer "*helm universal search*"
-          :prompt (format "Query (%s): " keyword)
-          :height universal-search-helm-height)
+    (unwind-protect
+        (when (window-live-p original-window)
+          (select-window original-window)
+          (when (buffer-live-p original-buffer)
+            (set-buffer original-buffer)
+            (switch-to-buffer original-buffer)))
+
+      (helm :sources (nreverse sources)
+            :buffer "*helm universal search*"
+            :prompt (format "Query (%s): " keyword)
+            :height universal-search-helm-height)
+      )
     )
   )
 
