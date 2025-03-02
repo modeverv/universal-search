@@ -35,11 +35,12 @@
 
 (defun universal-search-get-python-bin ()
   "Get the appropriate Python binary for the current environment."
-  (let ((candidates '("python3"
-                      "~/globalenv/bin/python3"
+  (let ((candidates '("~/globalenv/bin/python3"
                       "~/.pyenv/shims/python3"
                       "~/anaconda3/bin/python3"
-                      "python")))
+                      "/usr/bin/python3"
+                      "/usr/bin/python"
+                      )))
     (cl-loop for candidate in candidates
              when (executable-find (expand-file-name candidate))
              return (expand-file-name candidate)
