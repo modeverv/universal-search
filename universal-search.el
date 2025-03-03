@@ -431,7 +431,7 @@
              (module (lookup-default-module))
              (query (lookup-make-query 'default (lookup-entry-heading entry))))
         (if (fboundp 'lookup-display-entries)
-            (lookup-display-entries module query (list entry))
+              (lookup-display-entries module query (list entry))
           ;; simple lookup search
           (lookup-pattern (lookup-entry-heading entry)
                           )
