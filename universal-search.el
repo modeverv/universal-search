@@ -35,7 +35,9 @@
 
 (defun universal-search-get-python-bin ()
   "Get the appropriate Python binary for the current environment."
-  (let ((candidates '("~/globalenv/bin/python3"
+  (let ((candidates '(
+                      "~/miniforge3/bin/python"
+                      "~/globalenv/bin/python3"
                       "~/.pyenv/shims/python3"
                       "~/anaconda3/bin/python3"
                       "/usr/bin/python3"
